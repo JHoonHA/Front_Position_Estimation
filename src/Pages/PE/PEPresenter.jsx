@@ -6,10 +6,9 @@ import CamBoxTitle from './components/CamBoxTitle/CamBoxTitle';
 const PEPresenter = () => {
     const [poseData, setPoseData] = useState(null);
 
-    const handlePoseDetected = (poses) => {
-        setPoseData(poses); // CamBox에서 전달받은 poseData 업데이트
+    const handlePoseDetected = (data) => {
+        setPoseData(data); // CamBox에서 전달받은 poseData 업데이트
     };
-
     return (
         <View style={styles.container}>
             <CamBoxTitle />

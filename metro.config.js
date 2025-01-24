@@ -8,5 +8,13 @@ config.resolver.assetExts.push('bin');
 
 // Watchman 비활성화
 // config.resolver.useWatchman = false;
+// config.transformer = {
+//     ...config.transformer,
+//     plugins: [
+//       '@babel/plugin-transform-react-jsx',
+//       '@babel/plugin-transform-arrow-functions',
+//       '@babel/plugin-transform-async-to-generator'
+//     ],
+//   };
 
 module.exports = config;

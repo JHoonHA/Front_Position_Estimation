@@ -1,65 +1,76 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Button } from 'react-native';
 import { Camera, CameraType } from 'expo-camera';
-import * as tf from '@tensorflow/tfjs';
-import '@tensorflow/tfjs-react-native';
-import * as poseDetection from '@tensorflow-models/pose-detection';
 
 const CamBox = ({ onPoseDetected }) => {
     const [hasPermission, setHasPermission] = useState(null);
     const [cameraReady, setCameraReady] = useState(false);
     const cameraRef = useRef(null);
+    const [isDetecting, setIsDetecting] = useState(false);
 
     useEffect(() => {
         (async () => {
             const { status } = await Camera.requestCameraPermissionsAsync();
             setHasPermission(status === 'granted');
-            await tf.ready(); // TensorFlow.js 초기화
         })();
     }, []);
 
     useEffect(() => {
         let isMounted = true;
 
-        const runPoseDetection = async () => {
-            if (!cameraReady || !isMounted) return;
+        const processFrame = async () => {
+            if (!cameraReady || !isMounted || !isDetecting) return;
 
-            const detectorConfig = {
-                modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-            };
-            const detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, detectorConfig);
+            if (cameraRef.current) {
+                const picture = await cameraRef.current.takePictureAsync({
+                    skipProcessing: true,
+                });
+                await analyzePose(picture.uri);
+            }
 
-            const processFrame = async () => {
-                if (!isMounted || !cameraRef.current) return;
-
-                try {
-                    const cameraImage = await cameraRef.current.takePictureAsync({
-                        skipProcessing: true,
-                    });
-
-                    const imageTensor = tf.browser.fromPixels(cameraImage);
-                    const poses = await detector.estimatePoses(imageTensor);
-
-                    onPoseDetected(poses);
-                } catch (error) {
-                    console.error('Error processing frame:', error);
-                }
-
-                requestAnimationFrame(processFrame); // 다음 프레임 실행
-            };
-
-            processFrame();
+            requestAnimationFrame(processFrame); // 다음 프레임 실행
         };
 
-        runPoseDetection();
+        processFrame();
 
         return () => {
             isMounted = false;
         };
-    }, [cameraReady, onPoseDetected]);
+    }, [cameraReady, isDetecting]);
+
+    const analyzePose = async (imageUri) => {
+        const formData = new FormData();
+        formData.append('file', {
+            uri: imageUri,
+            name: 'photo.jpg',
+            type: 'image/jpeg',
+        });
+
+        try {
+            const response = await fetch('http://localhost:8000/analyze', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            const data = await response.json();
+            if (data.status) {
+                onPoseDetected(data); // 자세 분석 결과 컴포넌트로 전달
+            }
+        } catch (error) {
+            console.error('Error analyzing pose:', error);
+        }
+    };
+
+    const toggleDetection = () => {
+        setIsDetecting((prev) => !prev);
+    };
 
     if (hasPermission === null) {
-        return <View />;
+        console.log("허가")
+        // return <View />;
     }
 
     if (hasPermission === false) {
@@ -68,12 +79,22 @@ const CamBox = ({ onPoseDetected }) => {
 
     return (
         <View style={styles.container}>
-            <Camera
+            {/* <Camera
                 ref={cameraRef}
                 style={styles.camera}
-                type={CameraType.back}
+                // type={CameraType.back}
                 onCameraReady={() => setCameraReady(true)}
-            />
+            /> */}
+            {/* <Camera
+                ref={cameraRef}
+                style={styles.camera}
+                type="back"
+                onCameraReady={() => setCameraReady(true)}
+            /> */}
+            <Button title={isDetecting ? "Stop Detection" : "Start Detection"} onPress={toggleDetection} />
+            <Text style={styles.status}>
+                {isDetecting ? "Detecting..." : "Detection Stopped"}
+            </Text>
         </View>
     );
 };
@@ -84,6 +105,13 @@ const styles = StyleSheet.create({
     },
     camera: {
         flex: 1,
+    },
+    status: {
+        position: 'absolute',
+        bottom: 50,
+        left: 20,
+        color: 'white',
+        fontSize: 20,
     },
 });
 
